@@ -181,9 +181,7 @@ class BlinkCamera:
         )
         if res is None:
             return None
-        if self.product_type == "catalina":
-            res = res.get("camera", [{}])[0]["snooze_till"]
-        return res
+        return res.get("camera", [{}])[0].get("snooze_till")
 
     async def async_snooze(self, snooze_time=240):
         """Set camera snooze status."""
@@ -195,9 +193,7 @@ class BlinkCamera:
             product_type=self.product_type,
             data=data,
         )
-        if res and res.status == 200:
-            return await res.json()
-        return None
+        return res
 
     async def record(self):
         """Initiate clip recording."""
