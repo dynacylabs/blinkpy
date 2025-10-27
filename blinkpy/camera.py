@@ -523,6 +523,7 @@ class BlinkCameraMini(BlinkCamera):
         """Initialize a Blink Mini cameras."""
         super().__init__(sync)
         self.camera_type = "mini"
+        self.product_type = "owl"
 
     @property
     def arm(self):
@@ -589,6 +590,7 @@ class BlinkDoorbell(BlinkCamera):
         """Initialize a Blink Doorbell."""
         super().__init__(sync)
         self.camera_type = "doorbell"
+        self.product_type = "lotus"
 
     @property
     def arm(self):
@@ -651,9 +653,9 @@ class BlinkDoorbell(BlinkCamera):
         link = server.replace("immis://", "rtsps://")
         return link
 
-    async def async_snooze(self):
+    async def async_snooze(self, snooze_time=240):
         """Set camera snooze status."""
-        data = dumps({"snooze_time": 240})
+        data = dumps({"snooze_time": snooze_time})
         res = await api.request_camera_snooze(
             self.sync.blink,
             self.network_id,
@@ -661,6 +663,71 @@ class BlinkDoorbell(BlinkCamera):
             product_type="doorbell",
             data=data,
         )
-        if res and res.status == 200:
-            return await res.json()
-        return None
+        return res
+
+
+class BlinkCameraHawk(BlinkCamera):
+    """Define a class for a Blink Arc camera."""
+
+    def __init__(self, sync):
+        """Initialize a Blink Arc (Hawk)."""
+        super().__init__(sync)
+        self.camera_type = "hawk"
+        self.product_type = "hawk"
+
+    @property
+    def arm(self):
+        """Return camera arm status."""
+        return self.sync.arm
+
+    async def async_arm(self, value):
+        """Set camera arm status."""
+        url = (
+            f"{self.sync.urls.base_url}/api/v1/accounts/"
+            f"{self.sync.blink.account_id}/networks/"
+            f"{self.network_id}/hawks/{self.camera_id}/config"
+        )
+        data = dumps({"enabled": value})
+        response = await api.http_post(self.sync.blink, url, data=data)
+        await api.wait_for_command(self.sync.blink, response)
+        return response
+
+    async def record(self):
+        """Initiate clip recording for a blink hawk camera."""
+        url = (
+            f"{self.sync.urls.base_url}/api/v1/accounts/"
+            f"{self.sync.blink.account_id}/networks/"
+            f"{self.network_id}/hawks/{self.camera_id}/clip"
+        )
+        response = await api.http_post(self.sync.blink, url)
+        await api.wait_for_command(self.sync.blink, response)
+        return response
+
+    async def snap_picture(self):
+        """Snap picture for a blink hawk camera."""
+        url = (
+            f"{self.sync.urls.base_url}/api/v1/accounts/"
+            f"{self.sync.blink.account_id}/networks/"
+            f"{self.network_id}/hawks/{self.camera_id}/thumbnail"
+        )
+        response = await api.http_post(self.sync.blink, url)
+        await api.wait_for_command(self.sync.blink, response)
+        return response
+
+    async def get_sensor_info(self):
+        """Get sensor info for blink hawk camera."""
+
+    async def get_liveview(self):
+        """Get liveview link."""
+        url = (
+            f"{self.sync.urls.base_url}/api/v1/accounts/"
+            f"{self.sync.blink.account_id}/networks/"
+            f"{self.network_id}/hawks/{self.camera_id}/liveview"
+        )
+        response = await api.http_post(self.sync.blink, url)
+        await api.wait_for_command(self.sync.blink, response)
+        server = response["server"]
+        server_split = server.split(":")
+        server_split[0] = "rtsps"
+        link = ":".join(server_split)
+        return link

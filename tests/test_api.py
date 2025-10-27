@@ -159,6 +159,12 @@ class TestAPI(IsolatedAsyncioTestCase):
         )
         self.assertEqual(
             await api.request_get_config(
+                self.blink, "network", "camera_id", "hawk"
+            ),
+            {"config": "values"},
+        )
+        self.assertEqual(
+            await api.request_get_config(
                 self.blink, "network", "camera_id", "catalina"
             ),
             {"config": "values"},
@@ -169,6 +175,10 @@ class TestAPI(IsolatedAsyncioTestCase):
         mock_resp.return_value = mresp.MockResponse(COMMAND_RESPONSE, 200)
         response = await api.request_update_config(
             self.blink, "network", "camera_id", "owl"
+        )
+        self.assertEqual(response.status, 200)
+        response = await api.request_update_config(
+            self.blink, "network", "camera_id", "hawk"
         )
         self.assertEqual(response.status, 200)
         response = await api.request_update_config(
