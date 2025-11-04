@@ -731,3 +731,15 @@ class BlinkCameraHawk(BlinkCamera):
         server_split[0] = "rtsps"
         link = ":".join(server_split)
         return link
+
+    async def async_snooze(self, snooze_time=240):
+        """Set camera snooze status."""
+        data = dumps({"snooze_time": snooze_time})
+        res = await api.request_camera_snooze(
+            self.sync.blink,
+            self.network_id,
+            self.camera_id,
+            product_type="hawk",
+            data=data,
+        )
+        return res

@@ -223,6 +223,10 @@ class TestAPI(IsolatedAsyncioTestCase):
             self.blink, "network", "camera_id", "doorbell", {}
         )
         self.assertEqual(response.status, 200)
+        response = await api.request_camera_snooze(
+            self.blink, "network", "camera_id", "hawk", {}
+        )
+        self.assertEqual(response.status, 200)
 
     async def test_request_sync_snooze(self, mock_resp):
         """Test sync snooze update."""

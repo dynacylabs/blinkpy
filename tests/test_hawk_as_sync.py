@@ -2,11 +2,13 @@
 
 from unittest import mock
 from unittest import IsolatedAsyncioTestCase
+from json import dumps
 import pytest
 from blinkpy.blinkpy import Blink
 from blinkpy.helpers.util import BlinkURLHandler
 from blinkpy.sync_module import BlinkHawk
 from blinkpy.camera import BlinkCameraHawk
+from tests import mock_responses as mresp
 
 
 @mock.patch("blinkpy.auth.Auth.query")
@@ -47,3 +49,28 @@ class TestBlinkSyncModule(IsolatedAsyncioTestCase):
         self.assertTrue(await hawk.start())
         self.assertTrue("test" in hawk.cameras)
         self.assertEqual(hawk.cameras["test"].__class__, BlinkCameraHawk)
+
+    @pytest.mark.asyncio
+    async def test_hawk_camera_snooze(self, mock_resp):
+        """Test hawk camera snooze."""
+        self.blink.last_refresh = None
+        hawk = self.blink.sync["test"]
+        await hawk.start()
+        camera = hawk.cameras["test"]
+        
+        # Test successful snooze
+        mock_resp.return_value = mresp.MockResponse({}, 200)
+        with mock.patch("blinkpy.api.request_camera_snooze", return_value=mock_resp.return_value) as mock_snooze:
+            snooze_time = 240
+            expected_data = dumps({"snooze_time": snooze_time})
+            response = await camera.async_snooze(snooze_time)
+            
+            # Verify the API was called with correct parameters
+            mock_snooze.assert_called_once_with(
+                self.blink,
+                camera.network_id,
+                camera.camera_id,
+                product_type="hawk",
+                data=expected_data,
+            )
+            self.assertEqual(response.status, 200)

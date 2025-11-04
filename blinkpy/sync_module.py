@@ -239,7 +239,7 @@ class BlinkSyncModule:
                 
                 # Get camera info first to check product_type
                 camera_info = await self.get_camera_info(
-                    camera_config["id"], unique_info=unique_info
+                    camera_config["id"], unique_info=unique_info, camera_name=name
                 )
                 
                 # Check product_type from camera_info to determine correct class
@@ -287,6 +287,7 @@ class BlinkSyncModule:
     async def get_camera_info(self, camera_id, **kwargs):
         """Retrieve camera information."""
         unique = kwargs.get("unique_info", None)
+        camera_name = kwargs.get("camera_name", "Unknown")
         if unique is not None:
             return unique
         response = await api.request_camera_info(self.blink, self.network_id, camera_id)
@@ -294,7 +295,8 @@ class BlinkSyncModule:
             return response["camera"][0]
         except (TypeError, KeyError):
             _LOGGER.error(
-                "Could not extract camera info for %s: %s", camera_id, response
+                "Could not extract camera info for camera '%s' (ID: %s): %s", 
+                camera_name, camera_id, response
             )
             return {}
 
@@ -322,6 +324,7 @@ class BlinkSyncModule:
             camera_info = await self.get_camera_info(
                 camera_id,
                 unique_info=self.get_unique_info(camera_name),
+                camera_name=camera_name,
             )
             await self.cameras[camera_name].update(camera_info, force_cache=force_cache)
         self.available = True

@@ -549,6 +549,11 @@ async def request_camera_snooze(
             f"{blink.urls.base_url}/api/v1/accounts/{blink.account_id}/"
             f"networks/{network}/doorbells/{camera_id}/snooze"
         )
+    elif product_type == "hawk":
+        url = (
+            f"{blink.urls.base_url}/api/v1/accounts/{blink.account_id}/"
+            f"networks/{network}/cameras/{camera_id}/snooze"
+        )
     else:
         _LOGGER.info(
             "Camera %s with product type %s snooze update not implemented.",
