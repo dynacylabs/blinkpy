@@ -66,11 +66,87 @@ class TestBlinkSyncModule(IsolatedAsyncioTestCase):
             response = await camera.async_snooze(snooze_time)
             
             # Verify the API was called with correct parameters
+            # Note: product_type is None because extract_config_info
+            # overwrites __init__'s value with config.get("type")
+            # which is absent from the homescreen hawk response.
             mock_snooze.assert_called_once_with(
                 self.blink,
                 camera.network_id,
                 camera.camera_id,
-                product_type="hawk",
+                product_type=None,
                 data=expected_data,
             )
             self.assertEqual(response.status, 200)
+
+    @pytest.mark.asyncio
+    async def test_hawk_camera_arm(self, mock_resp):
+        """Test hawk camera arm and disarm."""
+        self.blink.last_refresh = None
+        hawk = self.blink.sync["test"]
+        await hawk.start()
+        camera = hawk.cameras["test"]
+        with mock.patch(
+            "blinkpy.api.wait_for_command", new_callable=mock.AsyncMock
+        ) as mock_wait:
+            mock_resp.side_effect = ["arm", "disarm"]
+            mock_wait.side_effect = [True, True]
+            self.assertEqual(await camera.async_arm(True), "arm")
+            self.assertEqual(await camera.async_arm(False), "disarm")
+
+    @pytest.mark.asyncio
+    async def test_hawk_camera_record(self, mock_resp):
+        """Test hawk camera clip recording."""
+        self.blink.last_refresh = None
+        hawk = self.blink.sync["test"]
+        await hawk.start()
+        camera = hawk.cameras["test"]
+        with mock.patch(
+            "blinkpy.api.wait_for_command", new_callable=mock.AsyncMock
+        ) as mock_wait:
+            mock_resp.return_value = "record"
+            mock_wait.return_value = True
+            self.assertEqual(await camera.record(), "record")
+
+    @pytest.mark.asyncio
+    async def test_hawk_camera_snap_picture(self, mock_resp):
+        """Test hawk camera snap picture."""
+        self.blink.last_refresh = None
+        hawk = self.blink.sync["test"]
+        await hawk.start()
+        camera = hawk.cameras["test"]
+        with mock.patch(
+            "blinkpy.api.wait_for_command", new_callable=mock.AsyncMock
+        ) as mock_wait:
+            mock_resp.return_value = "snap"
+            mock_wait.return_value = True
+            self.assertEqual(await camera.snap_picture(), "snap")
+
+    @pytest.mark.asyncio
+    async def test_hawk_camera_liveview(self, mock_resp):
+        """Test hawk camera liveview converts immis:// to rtsps://."""
+        self.blink.last_refresh = None
+        hawk = self.blink.sync["test"]
+        await hawk.start()
+        camera = hawk.cameras["test"]
+        with mock.patch(
+            "blinkpy.api.wait_for_command", new_callable=mock.AsyncMock
+        ) as mock_wait:
+            mock_resp.return_value = {"server": "immis://1.2.3.4:443/stream"}
+            mock_wait.return_value = True
+            result = await camera.get_liveview()
+            self.assertEqual(result, "rtsps://1.2.3.4:443/stream")
+
+    @pytest.mark.asyncio
+    async def test_hawk_camera_liveview_rtsps(self, mock_resp):
+        """Test hawk camera liveview with rtsps:// URL passthrough."""
+        self.blink.last_refresh = None
+        hawk = self.blink.sync["test"]
+        await hawk.start()
+        camera = hawk.cameras["test"]
+        with mock.patch(
+            "blinkpy.api.wait_for_command", new_callable=mock.AsyncMock
+        ) as mock_wait:
+            mock_resp.return_value = {"server": "rtsps://1.2.3.4:443/stream"}
+            mock_wait.return_value = True
+            result = await camera.get_liveview()
+            self.assertEqual(result, "rtsps://1.2.3.4:443/stream")

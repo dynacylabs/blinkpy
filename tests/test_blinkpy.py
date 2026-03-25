@@ -10,7 +10,7 @@ from unittest import mock
 from unittest import IsolatedAsyncioTestCase
 import time
 from blinkpy.blinkpy import Blink, BlinkSetupError, LoginError, TokenRefreshFailed
-from blinkpy.sync_module import BlinkOwl, BlinkLotus
+from blinkpy.sync_module import BlinkOwl, BlinkLotus, BlinkHawk
 from blinkpy.helpers.constants import __version__
 
 SPECIAL = "!@#$%^&*()_+-=[]{}|/<>?,.'"
@@ -246,7 +246,7 @@ class TestBlinkSetup(IsolatedAsyncioTestCase):
         result = await self.blink.setup_owls()
         self.assertEqual(self.blink.network_ids, ["1234"])
         self.assertEqual(
-            result, [{"1234": {"name": "foo", "id": "1234", "type": "mini"}}]
+            result, [{"1234": {"name": "foo", "id": 1, "type": "mini"}}]
         )
 
         self.blink.no_owls = True
@@ -277,7 +277,7 @@ class TestBlinkSetup(IsolatedAsyncioTestCase):
         mock_usage.return_value = {"networks": [{"cameras": [], "network_id": 1234}]}
         result = await self.blink.setup_camera_list()
         self.assertEqual(
-            result, {"1234": [{"name": "foo", "id": "1234", "type": "mini"}]}
+            result, {"1234": [{"name": "foo", "id": 1, "type": "mini"}]}
         )
 
     @mock.patch("blinkpy.blinkpy.BlinkLotus.start")
@@ -317,6 +317,43 @@ class TestBlinkSetup(IsolatedAsyncioTestCase):
         self.assertEqual(self.blink.sync["foo"].name, "foo")
         self.assertEqual(self.blink.sync["bar"].name, "bar")
 
+    @mock.patch("blinkpy.blinkpy.BlinkHawk.start")
+    async def test_initialize_blink_hawks(self, mock_start):
+        """Test blink hawk (arc) initialization."""
+        mock_start.return_value = True
+        self.blink.homescreen = {
+            "hawks": [
+                {
+                    "enabled": False,
+                    "id": 1,
+                    "name": "foo",
+                    "network_id": 2,
+                    "onboarded": True,
+                    "status": "online",
+                    "thumbnail": "/foo/bar",
+                    "serial": "1234",
+                },
+                {
+                    "enabled": True,
+                    "id": 3,
+                    "name": "bar",
+                    "network_id": 4,
+                    "onboarded": True,
+                    "status": "online",
+                    "thumbnail": "/foo/bar",
+                    "serial": "abcd",
+                },
+            ]
+        }
+        self.blink.sync = {}
+        await self.blink.setup_hawks()
+        self.assertEqual(self.blink.sync["foo"].__class__, BlinkHawk)
+        self.assertEqual(self.blink.sync["bar"].__class__, BlinkHawk)
+        self.assertEqual(self.blink.sync["foo"].arm, False)
+        self.assertEqual(self.blink.sync["bar"].arm, True)
+        self.assertEqual(self.blink.sync["foo"].name, "foo")
+        self.assertEqual(self.blink.sync["bar"].name, "bar")
+
     @mock.patch("blinkpy.api.request_camera_usage")
     async def test_blink_doorbell_attached_to_sync(self, mock_usage):
         """Test that blink doorbell cameras are properly attached to sync module."""
@@ -338,7 +375,7 @@ class TestBlinkSetup(IsolatedAsyncioTestCase):
         mock_usage.return_value = {"networks": [{"cameras": [], "network_id": 1234}]}
         result = await self.blink.setup_camera_list()
         self.assertEqual(
-            result, {"1234": [{"name": "foo", "id": "1234", "type": "doorbell"}]}
+            result, {"1234": [{"name": "foo", "id": 1, "type": "doorbell"}]}
         )
 
     @mock.patch("blinkpy.api.request_camera_usage")
@@ -371,8 +408,8 @@ class TestBlinkSetup(IsolatedAsyncioTestCase):
         }
         expected = {
             "1234": [
-                {"name": "foo", "id": "1234", "type": "doorbell"},
-                {"name": "bar", "id": "1234", "type": "doorbell"},
+                {"name": "foo", "id": 1, "type": "doorbell"},
+                {"name": "bar", "id": 2, "type": "doorbell"},
             ]
         }
         mock_usage.return_value = {"networks": [{"cameras": [], "network_id": 1234}]}
@@ -409,13 +446,60 @@ class TestBlinkSetup(IsolatedAsyncioTestCase):
         }
         expected = {
             "1234": [
-                {"name": "foo", "id": "1234", "type": "mini"},
-                {"name": "bar", "id": "1234", "type": "mini"},
+                {"name": "foo", "id": 1, "type": "mini"},
+                {"name": "bar", "id": 2, "type": "mini"},
             ]
         }
         mock_usage.return_value = {"networks": [{"cameras": [], "network_id": 1234}]}
         result = await self.blink.setup_camera_list()
         self.assertEqual(result, expected)
+
+    async def test_blink_hawk_cameras_returned(self):
+        """Test that blink hawk cameras are found if attached to sync module."""
+        self.blink.network_ids = ["1234"]
+        self.blink.homescreen = {
+            "hawks": [
+                {
+                    "id": 1,
+                    "name": "foo",
+                    "network_id": 1234,
+                    "onboarded": True,
+                    "enabled": True,
+                    "status": "online",
+                    "thumbnail": "/foo/bar",
+                    "serial": "abc123",
+                }
+            ]
+        }
+        result = await self.blink.setup_hawks()
+        self.assertEqual(self.blink.network_ids, ["1234"])
+        self.assertEqual(
+            result, [{"1234": {"name": "foo", "id": 1, "type": "hawk"}}]
+        )
+
+    @mock.patch("blinkpy.api.request_camera_usage")
+    async def test_blink_hawk_attached_to_sync(self, mock_usage):
+        """Test that blink hawk cameras are properly attached to sync module."""
+        self.blink.network_ids = ["1234"]
+        self.blink.homescreen = {
+            "hawks": [
+                {
+                    "id": 1,
+                    "name": "foo",
+                    "network_id": 1234,
+                    "onboarded": True,
+                    "enabled": True,
+                    "status": "online",
+                    "thumbnail": "/foo/bar",
+                    "serial": "abc123",
+                }
+            ]
+        }
+        mock_usage.return_value = {"networks": [{"cameras": [], "network_id": 1234}]}
+        result = await self.blink.setup_camera_list()
+        self.assertEqual(
+            result, {"1234": [{"name": "foo", "id": 1, "type": "hawk"}]}
+        )
 
     @mock.patch("blinkpy.api.request_camera_usage")
     async def test_blink_camera_mix(self, mock_usage):
@@ -466,13 +550,26 @@ class TestBlinkSetup(IsolatedAsyncioTestCase):
                     "serial": "dvorak",
                 },
             ],
+            "hawks": [
+                {
+                    "id": 5,
+                    "name": "flash",
+                    "network_id": 1234,
+                    "onboarded": True,
+                    "enabled": True,
+                    "status": "online",
+                    "thumbnail": "/flash/bang",
+                    "serial": "hawk123",
+                },
+            ],
         }
         expected = {
             "1234": [
-                {"name": "foo", "id": "1234", "type": "doorbell"},
-                {"name": "bar", "id": "1234", "type": "doorbell"},
-                {"name": "dead", "id": "1234", "type": "mini"},
-                {"name": "beef", "id": "1234", "type": "mini"},
+                {"name": "foo", "id": 1, "type": "doorbell"},
+                {"name": "bar", "id": 2, "type": "doorbell"},
+                {"name": "dead", "id": 3, "type": "mini"},
+                {"name": "beef", "id": 4, "type": "mini"},
+                {"name": "flash", "id": 5, "type": "hawk"},
                 {"name": "normal", "id": "1234", "type": "default"},
             ]
         }

@@ -14,7 +14,7 @@ import pytest
 import blinkpy.api
 from blinkpy.blinkpy import Blink
 from blinkpy.sync_module import BlinkSyncModule
-from blinkpy.camera import BlinkCamera, BlinkCameraMini, BlinkDoorbell
+from blinkpy.camera import BlinkCamera, BlinkCameraMini, BlinkDoorbell, BlinkCameraHawk
 from blinkpy.livestream import BlinkLiveStream
 from blinkpy.helpers import util
 
@@ -61,6 +61,7 @@ class TestBlinkCameraSetup(IsolatedAsyncioTestCase):
         self.camera.name = "foobar"
         self.mini_camera = BlinkCameraMini(self.blink.sync["test"])
         self.doorbell = BlinkDoorbell(self.blink.sync["test"])
+        self.hawk_camera = BlinkCameraHawk(self.blink.sync["test"])
 
         self.blink.sync["test"].cameras["foobar"] = self.camera
 
@@ -70,6 +71,7 @@ class TestBlinkCameraSetup(IsolatedAsyncioTestCase):
         self.camera = None
         self.mini_camera = None
         self.doorbell = None
+        self.hawk_camera = None
         self.throttle_patch.stop()
 
     async def test_camera_arm_disarm(self, mock_resp):
@@ -389,6 +391,9 @@ class TestBlinkCameraSetup(IsolatedAsyncioTestCase):
             if key == "recent_clips":
                 self.assertEqual(attr[key], [])
                 continue
+            if key == "type":
+                self.assertEqual(attr[key], "owl")
+                continue
             self.assertEqual(attr[key], None)
 
     def test_doorbell_missing_attributes(self, mock_resp):
@@ -401,6 +406,9 @@ class TestBlinkCameraSetup(IsolatedAsyncioTestCase):
             if key == "recent_clips":
                 self.assertEqual(attr[key], [])
                 continue
+            if key == "type":
+                self.assertEqual(attr[key], "lotus")
+                continue
             self.assertEqual(attr[key], None)
 
     async def test_camera_stream(self, mock_resp):
@@ -409,6 +417,7 @@ class TestBlinkCameraSetup(IsolatedAsyncioTestCase):
         self.assertEqual(await self.camera.get_liveview(), "rtsps://foo.bar")
         self.assertEqual(await self.mini_camera.get_liveview(), "rtsps://foo.bar")
         self.assertEqual(await self.doorbell.get_liveview(), "rtsps://foo.bar")
+        self.assertEqual(await self.hawk_camera.get_liveview(), "rtsps://foo.bar")
         with pytest.raises(NotImplementedError):
             await self.camera.init_livestream()
         with pytest.raises(NotImplementedError):
@@ -437,6 +446,22 @@ class TestBlinkCameraSetup(IsolatedAsyncioTestCase):
         self.assertIsInstance(await self.camera.init_livestream(), BlinkLiveStream)
         self.assertIsInstance(await self.mini_camera.init_livestream(), BlinkLiveStream)
         self.assertIsInstance(await self.doorbell.init_livestream(), BlinkLiveStream)
+
+    async def test_doorbell_liveview_immis_conversion(self, mock_resp):
+        """Test doorbell liveview converts immis:// to rtsps://."""
+        mock_resp.return_value = {
+            "server": "immis://1.2.3.4:443/ABCDEFG?client_id=123"
+        }
+        result = await self.doorbell.get_liveview()
+        self.assertEqual(result, "rtsps://1.2.3.4:443/ABCDEFG?client_id=123")
+
+    async def test_hawk_liveview_immis_conversion(self, mock_resp):
+        """Test hawk camera liveview converts immis:// to rtsps://."""
+        mock_resp.return_value = {
+            "server": "immis://1.2.3.4:443/ABCDEFG?client_id=123"
+        }
+        result = await self.hawk_camera.get_liveview()
+        self.assertEqual(result, "rtsps://1.2.3.4:443/ABCDEFG?client_id=123")
 
     async def test_different_thumb_api(self, mock_resp):
         """Test that the correct url is created with new api."""
