@@ -1,7 +1,6 @@
 """Tests camera and system functions."""
 
 import datetime
-from json import dumps
 import logging
 from unittest import IsolatedAsyncioTestCase
 from unittest import mock
@@ -61,7 +60,7 @@ class TestBlinkSyncModule(IsolatedAsyncioTestCase):
         self.mock_start = None
 
     def test_bad_status(self, mock_resp) -> None:
-        """Check that we mark module unavaiable on bad status."""
+        """Check that we mark module unavailable on bad status."""
         self.blink.sync["test"].status = None
         self.blink.sync["test"].available = True
         self.assertFalse(self.blink.sync["test"].online)
@@ -73,7 +72,7 @@ class TestBlinkSyncModule(IsolatedAsyncioTestCase):
         self.assertTrue(await self.blink.sync["test"].async_arm(False))
 
     def test_bad_arm(self, mock_resp) -> None:
-        """Check that we mark module unavaiable if bad arm status."""
+        """Check that we mark module unavailable if bad arm status."""
         self.blink.sync["test"].network_info = None
         self.blink.sync["test"].available = True
         self.assertEqual(self.blink.sync["test"].arm, None)
@@ -82,6 +81,69 @@ class TestBlinkSyncModule(IsolatedAsyncioTestCase):
         self.blink.sync["test"].available = True
         self.assertEqual(self.blink.sync["test"].arm, None)
         self.assertFalse(self.blink.sync["test"].available)
+
+    @mock.patch(
+        "blinkpy.api.request_sync_snooze",
+        mock.AsyncMock(return_value={"snooze_till": "2026-02-15T12:00:00+00:00"}),
+    )
+    async def test_snoozed(self, mock_resp) -> None:
+        """Check that we get snoozed status."""
+        result = await self.blink.sync["test"].snoozed
+        self.assertTrue(result)
+
+    @mock.patch(
+        "blinkpy.api.request_sync_snooze",
+        mock.AsyncMock(return_value=None),
+    )
+    async def test_snoozed_none(self, mock_resp) -> None:
+        """Check that we handle None response."""
+        result = await self.blink.sync["test"].snoozed
+        self.assertFalse(result)
+
+    @mock.patch(
+        "blinkpy.api.request_sync_snooze",
+        mock.AsyncMock(return_value={}),
+    )
+    async def test_snoozed_malformed(self, mock_resp) -> None:
+        """Check that we handle malformed response."""
+        result = await self.blink.sync["test"].snoozed
+        self.assertFalse(result)
+
+    @mock.patch(
+        "blinkpy.api.request_sync_snooze",
+        mock.AsyncMock(return_value={"snooze_till": ""}),
+    )
+    async def test_snoozed_empty_string(self, mock_resp) -> None:
+        """Check that we handle empty string response."""
+        result = await self.blink.sync["test"].snoozed
+        self.assertFalse(result)
+
+    @mock.patch(
+        "blinkpy.api.request_sync_snooze",
+        mock.AsyncMock(return_value={"status": 200}),
+    )
+    async def test_async_snooze(self, mock_resp) -> None:
+        """Check that we can set snooze."""
+        result = await self.blink.sync["test"].async_snooze(300)
+        self.assertEqual(result, {"status": 200})
+
+    @mock.patch(
+        "blinkpy.api.request_sync_snooze",
+        mock.AsyncMock(return_value={"status": 400}),
+    )
+    async def test_async_snooze_failure(self, mock_resp) -> None:
+        """Check that we handle snooze failure."""
+        result = await self.blink.sync["test"].async_snooze(300)
+        self.assertEqual(result, {"status": 400})
+
+    @mock.patch(
+        "blinkpy.api.request_sync_snooze",
+        mock.AsyncMock(return_value=None),
+    )
+    async def test_async_snooze_none_response(self, mock_resp) -> None:
+        """Check that we handle None response when setting snooze."""
+        result = await self.blink.sync["test"].async_snooze(300)
+        self.assertIsNone(result)
 
     def test_get_unique_info_valid_device(self, mock_resp) -> None:
         """Check that we get the correct info."""
@@ -93,7 +155,7 @@ class TestBlinkSyncModule(IsolatedAsyncioTestCase):
         self.assertEqual(self.blink.sync["test"].get_unique_info("doorbell1"), device)
 
     def test_get_unique_info_invalid_device(self, mock_resp) -> None:
-        """Check what happens if the devide does not exist."""
+        """Check what happens if the device does not exist."""
         device = {
             "enabled": True,
             "name": "doorbell1",
@@ -654,42 +716,3 @@ class TestBlinkSyncModule(IsolatedAsyncioTestCase):
         mock_del.return_value = mock.AsyncMock()
         mock_dl.return_value = False
         self.assertFalse(await item.download_video_delete(self.blink, "filename.mp4"))
-
-    async def test_async_snooze(self, mock_resp):
-        """Test successful snooze."""
-        with mock.patch(
-            "blinkpy.api.request_sync_snooze", new_callable=mock.AsyncMock
-        ) as mock_resp_local:
-            mock_resp_local.return_value.status = 200
-            mock_resp_local.return_value.json.return_value = {"status": 200}
-            snooze_time = 240
-            expected_data = dumps({"snooze_time": snooze_time})
-            expected_response = {"status": 200}
-
-            self.assertEqual(
-                await self.blink.sync["test"].async_snooze(snooze_time),
-                expected_response,
-            )
-            mock_resp_local.assert_called_once_with(
-                self.blink,
-                self.blink.sync["test"].network_id,
-                data=expected_data,
-            )
-
-            mock_resp_local.return_value.status = 400
-            mock_resp_local.return_value.json.return_value = None
-            expected_response = None
-
-            self.assertEqual(
-                await self.blink.sync["test"].async_snooze(snooze_time),
-                expected_response,
-            )
-
-    async def test_snooze_till(self, mock_resp) -> None:
-        """Test snooze_till method."""
-        mock_resp.return_value = {"snooze_till": "2022-01-01T00:00:00Z"}
-        self.assertEqual(
-            await self.blink.sync["test"].snooze_till, "2022-01-01T00:00:00Z"
-        )
-        mock_resp.return_value = None
-        self.assertIsNone(await self.blink.sync["test"].snooze_till)
