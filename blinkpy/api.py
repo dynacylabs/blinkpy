@@ -1113,3 +1113,21 @@ async def request_camera_snooze(
     )
     url = f"{url_root}/{product_lookup[product_type]}/{camera_id}/snooze"
     return await http_post(blink, url, json=True, data=data)
+
+
+async def request_sync_snooze(blink, network, data=None):
+    """
+    Get or update sync snooze configuration.
+
+    :param blink: Blink instance.
+    :param network: Sync module network id.
+    :param data: string w/JSON dict of parameters/values to update.
+        If None, performs a GET to read current snooze state.
+    """
+    url = (
+        f"{blink.urls.base_url}/api/v1/accounts/{blink.account_id}"
+        f"/networks/{network}/snooze"
+    )
+    if data is None:
+        return await http_get(blink, url)
+    return await http_post(blink, url, json=True, data=data)
